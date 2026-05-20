@@ -133,3 +133,28 @@ class TestSeedIdempotency:
         engine.dispose()
 
         assert count == 100, f"Expected 100 after re-run, got {count}"
+
+
+class TestSeedTimingRegressionGuard:
+    """8-D.4 — Prevents accidental reversion to row-by-row inserts."""
+
+    def test_seed_completes_under_5_seconds(self):
+        """Seeding 100 rows must complete in < 5s (bulk insert guard)."""
+        import time
+
+        engine = create_engine(
+            "sqlite:///:memory:",
+            connect_args={"check_same_thread": False},
+        )
+        Base.metadata.create_all(bind=engine)
+
+        start = time.perf_counter()
+        seed(count=100, engine=engine)
+        elapsed = time.perf_counter() - start
+
+        engine.dispose()
+
+        assert elapsed < 5.0, (
+            f"Seed took {elapsed:.1f}s — check for missing transaction batching"
+        )
+
